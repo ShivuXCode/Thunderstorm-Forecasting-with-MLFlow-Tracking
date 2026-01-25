@@ -1,0 +1,1 @@
+MODEL_PATH = "experiments/KNN_best_model.pkl"
