@@ -1,9 +1,13 @@
-import joblib
-from app.config import MODEL_PATH
+from functools import lru_cache
 
+import joblib
+
+from app.config import resolve_model_path
+
+
+@lru_cache(maxsize=1)
 def load_model():
-    with open(MODEL_PATH, 'rb') as model_file:
-        model = joblib.load(model_file)
-    return model
+    return joblib.load(resolve_model_path())
+
 
 model = load_model()
