@@ -7,11 +7,11 @@ This document explains:
 
 ## 1) Project Purpose
 
-This project predicts thunderstorm occurrence (`0` or `1`) using a saved KNN classifier and a Streamlit UI.
+This project predicts thunderstorm occurrence (`0` or `1`) using a saved KNN-based model and a Streamlit UI.
 
 There are two main workflows:
 - **Inference workflow (UI prediction):** user enters weather features in Streamlit, app returns prediction and probability.
-- **Training-rebuild workflow:** script reconstructs training data from the saved model internals and rebuilds an equivalent model.
+- **Training-rebuild workflow:** script reconstructs the stored training data, splits it into train/test sets, scales the features, tunes a KNN pipeline, and saves the rebuilt model.
 
 ## 2) Current Folder Layout
 
@@ -59,7 +59,7 @@ There are two main workflows:
 
 **What it contains**
 - `PROJECT_ROOT` detection.
-- `MODEL_PATH = PROJECT_ROOT / "models" / "KNN_best_model_clean.pkl"`.
+- `MODEL_CANDIDATES` ordered to prefer `models/KNN_best_model_rebuilt.pkl` and fall back to `models/KNN_best_model_clean.pkl`.
 - `resolve_model_path()` that validates existence and raises a clear error if missing.
 
 **Why it matters**
@@ -128,14 +128,16 @@ There are two main workflows:
 - Training-equivalent recovery script from the saved model internals.
 
 **What it contains**
-- Loads saved KNN model from `models/KNN_best_model_clean.pkl`.
+- Loads saved KNN model from `models/KNN_best_model_clean.pkl` or `models/KNN_best_model_rebuilt.pkl` if already present.
 - Extracts fitted training matrix and labels (`_fit_X`, `_y`).
-- Recreates a new KNN with original hyperparameters (`get_params()`).
-- Fits rebuilt model on extracted data.
+- Writes the recovered training data to `data/extracted/knn_training_data.csv`.
+- Splits the recovered data into train/test sets with `train_test_split(..., stratify=y)` when possible.
+- Builds a `Pipeline(StandardScaler() -> KNeighborsClassifier())`.
+- Tunes KNN hyperparameters with `GridSearchCV`.
 - Saves outputs:
   - rebuilt model: `models/KNN_best_model_rebuilt.pkl`
   - extracted data: `data/extracted/knn_training_data.csv`
-- Prints metrics and checks prediction identity with source model.
+- Prints train/test metrics for both the original source model and the rebuilt pipeline.
 
 **Why it matters**
 - Gives you a runnable `.py` training-equivalent path even though original training source was unavailable.
@@ -148,7 +150,7 @@ There are two main workflows:
 - Primary persisted model used for prediction.
 
 **What it contains**
-- Serialized `KNeighborsClassifier` object.
+- Serialized `KNeighborsClassifier` or rebuilt `Pipeline(StandardScaler -> KNeighborsClassifier)` object.
 - Includes trained state (neighbors data, labels, parameters, feature names).
 
 **Why it matters**
@@ -187,9 +189,9 @@ There are two main workflows:
    - `python3 scripts/rebuild_knn_training.py`
 2. Script loads source model (`KNN_best_model_clean.pkl`).
 3. Script extracts internal training arrays from source model.
-4. Script creates and fits a new KNN with same params.
+4. Script splits the recovered data into train/test sets, scales features, and tunes KNN hyperparameters.
 5. Script saves rebuilt model + extracted training CSV.
-6. Script prints metrics and verifies identical predictions.
+6. Script prints train/test metrics for the source model and the rebuilt pipeline.
 
 ## 6) How to Run
 
@@ -219,4 +221,4 @@ python3 scripts/rebuild_knn_training.py
 
 - The predictor requires these exact 8 feature names and order (enforced in code).
 - `scripts/rebuild_knn_training.py` is a recovered training-equivalent path, not the original historical training script.
-- If `models/KNN_best_model_clean.pkl` is missing, both prediction and rebuild workflows will fail.
+- If `models/KNN_best_model_clean.pkl` is missing, prediction still works only if `models/KNN_best_model_rebuilt.pkl` exists.
